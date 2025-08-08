@@ -1,0 +1,40 @@
+#!/usr/bin/env sh
+
+##############################################################################
+## Gradle start up script for UN*X                                         ##
+##############################################################################
+
+# Attempt to locate JAVA_HOME if set
+if [ -n "$JAVA_HOME" ] ; then
+    JAVACMD="$JAVA_HOME/bin/java"
+else
+    JAVACMD="java"
+fi
+
+# Determine the location of the script
+PRG="$0"
+while [ -h "$PRG" ] ; do
+    ls=`ls -ld "$PRG"`
+    link=`expr "$ls" : '.*-> \(.*\)$'`
+    if expr "$link" : '/.*' > /dev/null; then
+      PRG="$link"
+    else
+      PRG=`dirname "$PRG"`/`basename "$link"`
+    fi
+done
+SAVED="`pwd`"
+cd "`dirname \"$PRG\"`/" >/dev/null
+APP_HOME="`pwd -P`"
+cd "$SAVED" >/dev/null
+
+CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
+
+# Determine the Java command to use to start the JVM.
+if [ -z "$JAVACMD" ] ; then
+    JAVACMD="java"
+fi
+
+# Increase default memory for wrapper
+DEFAULT_JVM_OPTS="-Xmx64m -Xms64m"
+
+exec "$JAVACMD" $DEFAULT_JVM_OPTS -cp "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"

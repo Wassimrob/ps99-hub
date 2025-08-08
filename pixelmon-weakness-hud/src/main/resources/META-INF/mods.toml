@@ -1,0 +1,16 @@
+modLoader="javafml"
+loaderVersion="[36,)"
+license="MIT"
+issueTrackerURL=""
+
+[[mods]]
+modId="pixelmon_weakness_hud"
+version="${file.jarVersion}"
+displayName="Pixelmon Weakness HUD"
+author="You"
+description='''
+Shows type weakness icons next to enemy name during Pixelmon battles.
+'''
+
+dependencies=[
+]
