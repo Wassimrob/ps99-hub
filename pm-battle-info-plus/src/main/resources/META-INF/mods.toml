@@ -1,0 +1,36 @@
+modLoader="javafml"
+loaderVersion="[36,)"
+license="All Rights Reserved"
+issueTrackerURL=""
+
+[[mods]]
+modId="pmbattleinfo"
+version="${file.jarVersion}"
+displayName="PM Battle Info Plus"
+displayURL=""
+credits=""
+authors="You"
+description='''
+Shows predicted damage percentage for Pixelmon moves when holding a key during battles.
+'''
+
+[[dependencies.pmbattleinfo]]
+    modId="forge"
+    mandatory=true
+    versionRange="[36,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.pmbattleinfo]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.16.5,1.17)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.pmbattleinfo]]
+    modId="pixelmon"
+    mandatory=true
+    versionRange="[9.1.13,9.1.14)"
+    ordering="NONE"
+    side="BOTH"
