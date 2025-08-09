@@ -37,7 +37,7 @@ android {
     }
 
     composeOptions {
-        // Compose compiler is bundled with Kotlin 2.x, keep null or default
+        kotlinCompilerExtensionVersion = "1.5.14"
     }
 
     packaging {
@@ -58,7 +58,7 @@ android {
 }
 
 dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
 
     implementation(composeBom)
     androidTestImplementation(composeBom)
