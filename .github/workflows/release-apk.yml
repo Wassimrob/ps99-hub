@@ -27,16 +27,24 @@ jobs:
           yes | sdkmanager --licenses
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-      # Create the Android project in this repo so it can build in the cloud
       - name: Create Android project files
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p app/src/main/java/com/pixelmon/utm/features/{tournament,team} app/src/main/res/values .github/workflows app
+
           cat > settings.gradle.kts << 'EOF'
+          pluginManagement {
+            repositories {
+              google()
+              mavenCentral()
+              gradlePluginPortal()
+            }
+          }
           rootProject.name = "PixelmonUTM"
           include(":app")
           EOF
+
           cat > build.gradle.kts << 'EOF'
           plugins {
             id("com.android.application") version "8.5.2" apply false
@@ -48,12 +56,14 @@ jobs:
             repositories { google(); mavenCentral() }
           }
           EOF
+
           cat > gradle.properties << 'EOF'
           org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
           android.useAndroidX=true
           android.nonTransitiveRClass=true
           kotlin.code.style=official
           EOF
+
           cat > app/build.gradle.kts << 'EOF'
           plugins {
             id("com.android.application")
@@ -105,12 +115,15 @@ jobs:
             androidTestImplementation("androidx.compose.ui:ui-test-junit4")
           }
           EOF
+
           cat > app/proguard-rules.pro << 'EOF'
           -keep class kotlin.** { *; }
           -keep class androidx.compose.** { *; }
           -dontwarn org.jetbrains.annotations.**
           EOF
+
           mkdir -p app/src/main
+
           cat > app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -131,19 +144,22 @@ jobs:
             </application>
           </manifest>
           EOF
-          mkdir -p app/src/main/res/values
+
           cat > app/src/main/res/values/strings.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
             <string name="app_name">Pixelmon UTM</string>
           </resources>
           EOF
+
           mkdir -p app/src/main/java/com/pixelmon/utm/ui/theme
+
           cat > app/src/main/java/com/pixelmon/utm/MainActivity.kt << 'EOF'
           package com.pixelmon.utm
           import android.os.Bundle
           import androidx.activity.ComponentActivity
           import androidx.activity.compose.setContent
+          import androidx.compose.foundation.layout.PaddingValues
           import androidx.compose.foundation.layout.fillMaxSize
           import androidx.compose.material3.*
           import androidx.compose.runtime.Composable
@@ -208,6 +224,7 @@ jobs:
             }
           }
           EOF
+
           cat > app/src/main/java/com/pixelmon/utm/ui/theme/Theme.kt << 'EOF'
           package com.pixelmon.utm.ui.theme
           import androidx.compose.foundation.isSystemInDarkTheme
@@ -223,6 +240,7 @@ jobs:
             MaterialTheme(colorScheme = colors, content = content)
           }
           EOF
+
           cat > app/src/main/java/com/pixelmon/utm/features/tournament/BracketModels.kt << 'EOF'
           package com.pixelmon.utm.features.tournament
           import kotlin.random.Random
@@ -250,8 +268,10 @@ jobs:
             return Bracket(rounds)
           }
           EOF
+
           cat > app/src/main/java/com/pixelmon/utm/features/tournament/TournamentScreen.kt << 'EOF'
           package com.pixelmon.utm.features.tournament
+          import androidx.compose.foundation.layout.PaddingValues
           import androidx.compose.foundation.layout.*
           import androidx.compose.foundation.lazy.LazyColumn
           import androidx.compose.foundation.lazy.items
@@ -300,12 +320,14 @@ jobs:
             }
           }
           EOF
+
           cat > app/src/main/java/com/pixelmon/utm/features/team/TeamModels.kt << 'EOF'
           package com.pixelmon.utm.features.team
           data class Species(val id: String, val name: String)
           data class TeamMember(val species: Species, val nickname: String? = null)
           data class Team(val name: String, val members: List<TeamMember> = emptyList())
           EOF
+
           cat > app/src/main/java/com/pixelmon/utm/features/team/SpeciesData.kt << 'EOF'
           package com.pixelmon.utm.features.team
           object SpeciesDataRepository {
@@ -316,8 +338,10 @@ jobs:
             )
           }
           EOF
+
           cat > app/src/main/java/com/pixelmon/utm/features/team/TeamManagerScreen.kt << 'EOF'
           package com.pixelmon.utm.features.team
+          import androidx.compose.foundation.layout.PaddingValues
           import androidx.compose.foundation.layout.*
           import androidx.compose.foundation.lazy.LazyColumn
           import androidx.compose.foundation.lazy.items
