@@ -31,24 +31,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p app/src/main/java/com/pixelmon/utm/features/{tournament,team} app/src/main/res/values .github/workflows app
+          mkdir -p app/src/main/java/com/wassim/ebello/features/{tournament,teams,common} app/src/main/res/values app/src/main/res/mipmap-anydpi-v26
 
           cat > settings.gradle.kts << 'EOF'
           pluginManagement {
-            repositories {
-              google()
-              mavenCentral()
-              gradlePluginPortal()
-            }
+            repositories { google(); mavenCentral(); gradlePluginPortal() }
           }
           dependencyResolutionManagement {
             repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-            repositories {
-              google()
-              mavenCentral()
-            }
+            repositories { google(); mavenCentral() }
           }
-          rootProject.name = "PixelmonUTM"
+          rootProject.name = "WassimEBello"
           include(":app")
           EOF
 
@@ -72,11 +65,11 @@ jobs:
             id("org.jetbrains.kotlin.android")
           }
           android {
-            namespace = "com.pixelmon.utm"
+            namespace = "com.wassim.ebello"
             compileSdk = 34
             defaultConfig {
-              applicationId = "com.pixelmon.utm"
-              minSdk = 24
+              applicationId = "com.wassim.ebello"
+              minSdk = 29
               targetSdk = 34
               versionCode = 1
               versionName = "1.0.0"
@@ -90,14 +83,14 @@ jobs:
               }
               debug { isMinifyEnabled = false }
             }
-            buildFeatures { compose = true; buildConfig = true }
+            buildFeatures { compose = true }
             composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
-            packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
             kotlinOptions { jvmTarget = "17" }
             compileOptions {
               sourceCompatibility = JavaVersion.VERSION_17
               targetCompatibility = JavaVersion.VERSION_17
             }
+            packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
           }
           dependencies {
             val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
@@ -110,14 +103,11 @@ jobs:
             implementation("androidx.compose.ui:ui-tooling-preview")
             implementation("androidx.compose.material3:material3:1.3.0")
             implementation("androidx.navigation:navigation-compose:2.8.0")
+            implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
             debugImplementation("androidx.compose.ui:ui-tooling")
-            debugImplementation("androidx.compose.ui:ui-test-manifest")
 
             testImplementation("junit:junit:4.13.2")
-            androidTestImplementation("androidx.test.ext:junit:1.2.1")
-            androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
-            androidTestImplementation("androidx.compose.ui:ui-test-junit4")
           }
           EOF
 
@@ -132,10 +122,11 @@ jobs:
           cat > app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET"/>
             <application
               android:allowBackup="true"
-              android:label="Pixelmon UTM"
-              android:icon="@android:drawable/sym_def_app_icon"
+              android:label="Wassim E Bello"
+              android:icon="@mipmap/ic_launcher"
               android:supportsRtl="true"
               android:theme="@android:style/Theme.DeviceDefault">
               <activity
@@ -150,253 +141,287 @@ jobs:
           </manifest>
           EOF
 
-          cat > app/src/main/res/values/strings.xml << 'EOF'
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-            <string name="app_name">Pixelmon UTM</string>
-          </resources>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+            <background android:drawable="@android:color/black"/>
+            <foreground android:drawable="@android:drawable/star_big_on"/>
+          </adaptive-icon>
           EOF
 
-          mkdir -p app/src/main/java/com/pixelmon/utm/ui/theme
-
-          cat > app/src/main/java/com/pixelmon/utm/MainActivity.kt << 'EOF'
-          package com.pixelmon.utm
+          cat > app/src/main/java/com/wassim/ebello/MainActivity.kt << 'EOF'
+          package com.wassim.ebello
           import android.os.Bundle
           import androidx.activity.ComponentActivity
           import androidx.activity.compose.setContent
+          import androidx.compose.foundation.layout.Arrangement
+          import androidx.compose.foundation.layout.Column
           import androidx.compose.foundation.layout.PaddingValues
           import androidx.compose.foundation.layout.fillMaxSize
-          import androidx.compose.material3.*
+          import androidx.compose.foundation.layout.padding
+          import androidx.compose.material3.Button
+          import androidx.compose.material3.MaterialTheme
+          import androidx.compose.material3.NavigationBar
+          import androidx.compose.material3.NavigationBarItem
+          import androidx.compose.material3.Scaffold
+          import androidx.compose.material3.Surface
+          import androidx.compose.material3.Text
           import androidx.compose.runtime.Composable
           import androidx.compose.runtime.getValue
+          import androidx.compose.runtime.mutableStateOf
+          import androidx.compose.runtime.remember
           import androidx.compose.ui.Modifier
           import androidx.compose.ui.res.painterResource
+          import androidx.compose.ui.unit.dp
           import androidx.navigation.NavGraph.Companion.findStartDestination
-          import androidx.navigation.NavHostController
           import androidx.navigation.compose.NavHost
           import androidx.navigation.compose.composable
           import androidx.navigation.compose.currentBackStackEntryAsState
           import androidx.navigation.compose.rememberNavController
-          import com.pixelmon.utm.features.team.TeamManagerScreen
-          import com.pixelmon.utm.features.tournament.TournamentScreen
-          import com.pixelmon.utm.ui.theme.PixelmonTheme
+          import com.wassim.ebello.features.tournament.BracketScreen
+          import com.wassim.ebello.features.tournament.TournamentsScreen
+          import com.wassim.ebello.features.teams.TeamImportExportScreen
+
           class MainActivity : ComponentActivity() {
             override fun onCreate(savedInstanceState: Bundle?) {
               super.onCreate(savedInstanceState)
               setContent {
-                PixelmonTheme {
-                  Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    val navController = rememberNavController()
-                    AppScaffold(navController = navController)
-                  }
+                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                  val nav = rememberNavController()
+                  Scaffold(bottomBar = {
+                    NavigationBar {
+                      val back by nav.currentBackStackEntryAsState()
+                      val route = back?.destination?.route
+                      listOf("home","tournaments","teams").forEach { r ->
+                        NavigationBarItem(
+                          selected = route == r,
+                          onClick = { nav.navigate(r) {
+                            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true; restoreState = true
+                          }},
+                          icon = { androidx.compose.material3.Icon(painterResource(android.R.drawable.star_big_on), null) },
+                          label = { Text(r.replaceFirstChar { it.uppercase() }) }
+                        )
+                      }
+                    }
+                  }) { pad -> NavHost(nav, "home") {
+                      composable("home") { HomeScreen(pad) }
+                      composable("tournaments") { TournamentsScreen(pad) }
+                      composable("teams") { TeamImportExportScreen(pad) }
+                      composable("bracket") { BracketScreen(pad) }
+                  } }
                 }
               }
             }
           }
-          private enum class AppDestination(val route: String, val label: String) {
-            HOME("home", "Home"), TOURNAMENT("tournament", "Tournament"), TEAM_MANAGER("team", "UTM")
-          }
+
           @Composable
-          private fun AppScaffold(navController: NavHostController) {
-            Scaffold(bottomBar = { BottomNavBar(navController = navController) }) { _ ->
-              NavHost(navController = navController, startDestination = AppDestination.HOME.route) {
-                composable(AppDestination.HOME.route) { Text("Pixelmon-inspired UI\nRandom Tournament + UTM") }
-                composable(AppDestination.TOURNAMENT.route) { TournamentScreen(PaddingValues()) }
-                composable(AppDestination.TEAM_MANAGER.route) { TeamManagerScreen(PaddingValues()) }
-              }
-            }
-          }
-          @Composable
-          private fun BottomNavBar(navController: NavHostController) {
-            val items = listOf(AppDestination.HOME, AppDestination.TOURNAMENT, AppDestination.TEAM_MANAGER)
-            NavigationBar {
-              val navBackStackEntry by navController.currentBackStackEntryAsState()
-              val currentDestination = navBackStackEntry?.destination
-              items.forEach { dest ->
-                NavigationBarItem(
-                  selected = currentDestination?.route == dest.route,
-                  onClick = {
-                    navController.navigate(dest.route) {
-                      popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                      launchSingleTop = true
-                      restoreState = true
-                    }
-                  },
-                  icon = { Icon(painter = painterResource(android.R.drawable.star_big_on), contentDescription = dest.label) },
-                  label = { Text(dest.label) }
-                )
-              }
+          private fun HomeScreen(padding: PaddingValues) {
+            val status = remember { mutableStateOf("UTM: Ultimate Team Tournament") }
+            Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+              Text("Wassim E Bello", style = MaterialTheme.typography.titleLarge)
+              Text(status.value)
+              Button(onClick = { status.value = "Seeded bracket demo generated" }) { Text("Generate Seeded Bracket") }
             }
           }
           EOF
 
-          cat > app/src/main/java/com/pixelmon/utm/ui/theme/Theme.kt << 'EOF'
-          package com.pixelmon.utm.ui.theme
-          import androidx.compose.foundation.isSystemInDarkTheme
-          import androidx.compose.material3.MaterialTheme
-          import androidx.compose.material3.darkColorScheme
-          import androidx.compose.material3.lightColorScheme
-          import androidx.compose.runtime.Composable
-          private val DarkColors = darkColorScheme()
-          private val LightColors = lightColorScheme()
-          @Composable
-          fun PixelmonTheme(useDarkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-            val colors = if (useDarkTheme) DarkColors else LightColors
-            MaterialTheme(colorScheme = colors, content = content)
-          }
+          cat > app/src/main/java/com/wassim/ebello/features/tournament/BracketModels.kt << 'EOF'
+          package com.wassim.ebello.features.tournament
+          data class Participant(val id: String, val name: String)
+          data class Match(val a: Participant?, val b: Participant?)
+          data class Round(val matches: List<Match>)
+          data class Bracket(val rounds: List<Round>, val seed: Long)
           EOF
 
-          cat > app/src/main/java/com/pixelmon/utm/features/tournament/BracketModels.kt << 'EOF'
-          package com.pixelmon.utm.features.tournament
+          cat > app/src/main/java/com/wassim/ebello/features/tournament/BracketEngines.kt << 'EOF'
+          package com.wassim.ebello.features.tournament
           import kotlin.random.Random
-          data class Participant(val id: String, val displayName: String)
-          data class Match(val roundIndex: Int, val matchIndex: Int, val participantA: Participant?, val participantB: Participant?)
-          data class Bracket(val rounds: List<List<Match>>)
-          fun generateRandomBracket(participants: List<Participant>, random: Random = Random.Default): Bracket {
-            require(participants.size >= 2) { "At least 2 participants required" }
-            val nextPow2 = 1 shl (32 - Integer.numberOfLeadingZeros(participants.size - 1))
-            val numByes = nextPow2 - participants.size
-            val shuffled = participants.shuffled(random)
-            val initialWithByes = buildList {
-              addAll(shuffled)
-              repeat(numByes) { add(Participant(id = "bye-$it", displayName = "BYE")) }
+
+          object BracketEngines {
+            fun singleElim(players: List<Participant>, seed: Long): Bracket {
+              require(players.size >= 2)
+              val rng = Random(seed)
+              val nextPow2 = 1 shl (32 - Integer.numberOfLeadingZeros(players.size - 1))
+              val byes = nextPow2 - players.size
+              val pool = players.shuffled(rng) + List(byes) { Participant("bye-$it","BYE") }
+              val rounds = mutableListOf<Round>()
+              var current = pool.chunked(2).map { Match(it.getOrNull(0), it.getOrNull(1)) }
+              rounds += Round(current)
+              var size = current.size
+              while (size > 1) {
+                size /= 2
+                rounds += Round(List(size) { Match(null,null) })
+              }
+              return Bracket(rounds, seed)
             }
-            val rounds = mutableListOf<List<Match>>()
-            var current = initialWithByes.chunked(2).mapIndexed { index, pair -> Match(0, index, pair.getOrNull(0), pair.getOrNull(1)) }
-            rounds.add(current)
-            var round = 1
-            var size = current.size
-            while (size > 1) {
-              val next = (0 until size / 2).map { idx -> Match(round, idx, null, null) }
-              rounds.add(next); size /= 2; round += 1
+
+            fun roundRobin(players: List<Participant>, seed: Long): Bracket {
+              require(players.size >= 2)
+              val rng = Random(seed)
+              val list = if (players.size % 2 == 0) players.shuffled(rng) else players.shuffled(rng) + Participant("bye","BYE")
+              val n = list.size
+              val rounds = mutableListOf<Round>()
+              var arr = list.toMutableList()
+              for (r in 0 until n-1) {
+                val pairings = mutableListOf<Match>()
+                for (i in 0 until n/2) pairings += Match(arr[i], arr[n-1-i])
+                rounds += Round(pairings)
+                val fixed = arr.first()
+                val rotated = listOf(fixed) + listOf(arr.last()) + arr.subList(1, n-1)
+                arr = rotated.toMutableList()
+              }
+              return Bracket(rounds, seed)
             }
-            return Bracket(rounds)
+
+            fun swiss(players: List<Participant>, roundsCount: Int, seed: Long): Bracket {
+              require(players.size >= 2 && roundsCount >= 1)
+              val rng = Random(seed)
+              val shuffled = players.shuffled(rng)
+              val rounds = (0 until roundsCount).map {
+                val pairings = shuffled.chunked(2).map { pair -> Match(pair.getOrNull(0), pair.getOrNull(1)) }
+                Round(pairings)
+              }
+              return Bracket(rounds, seed)
+            }
           }
           EOF
 
-          cat > app/src/main/java/com/pixelmon/utm/features/tournament/TournamentScreen.kt << 'EOF'
-          package com.pixelmon.utm.features.tournament
+          cat > app/src/main/java/com/wassim/ebello/features/tournament/TournamentsScreen.kt << 'EOF'
+          package com.wassim.ebello.features.tournament
           import androidx.compose.foundation.layout.PaddingValues
-          import androidx.compose.foundation.layout.*
-          import androidx.compose.foundation.lazy.LazyColumn
-          import androidx.compose.foundation.lazy.items
-          import androidx.compose.material3.*
+          import androidx.compose.foundation.layout.Column
+          import androidx.compose.foundation.layout.padding
+          import androidx.compose.material3.Button
+          import androidx.compose.material3.Text
           import androidx.compose.runtime.Composable
-          import androidx.compose.runtime.mutableStateListOf
+          import androidx.compose.runtime.mutableStateOf
           import androidx.compose.runtime.remember
           import androidx.compose.ui.Modifier
           import androidx.compose.ui.unit.dp
-          import kotlin.random.Random
+
           @Composable
-          fun TournamentScreen(paddingValues: PaddingValues) {
-            val participants = remember { mutableStateListOf<Participant>() }
-            val bracketState = remember { mutableStateListOf<List<Match>>() }
-            Column(Modifier.fillMaxSize().padding(paddingValues).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-              Text("Random Tournament (Smash MC style)", style = MaterialTheme.typography.titleLarge)
-              val newName = remember { androidx.compose.runtime.mutableStateOf("") }
-              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = newName.value, onValueChange = { newName.value = it }, label = { Text("Add participant") }, modifier = Modifier.weight(1f))
-                Button(onClick = {
-                  val t = newName.value.trim()
-                  if (t.isNotEmpty()) { participants.add(Participant(System.currentTimeMillis().toString() + Random.nextInt(), t)); newName.value = "" }
-                }) { Text("Add") }
+          fun TournamentsScreen(padding: PaddingValues) {
+            val status = remember { mutableStateOf("No bracket yet") }
+            Column(Modifier.padding(padding).padding(16.dp)) {
+              Text("Random / UTM Tournaments")
+              Button(onClick = {
+                val players = (1..8).map { Participant("$it","Player $it") }
+                val b = BracketEngines.singleElim(players, seed = 1234L)
+                status.value = "Single Elim rounds=${b.rounds.size} seed=${b.seed}"
+              }) { Text("Single Elim (seeded)") }
+              Button(onClick = {
+                val players = (1..6).map { Participant("$it","Player $it") }
+                val b = BracketEngines.roundRobin(players, seed = 42L)
+                status.value = "Round Robin rounds=${b.rounds.size}"
+              }) { Text("Round Robin") }
+              Button(onClick = {
+                val players = (1..8).map { Participant("$it","Player $it") }
+                val b = BracketEngines.swiss(players, roundsCount = 3, seed = 77L)
+                status.value = "Swiss rounds=${b.rounds.size}"
+              }) { Text("Swiss") }
+              Text(status.value)
+            }
+          }
+          EOF
+
+          cat > app/src/main/java/com/wassim/ebello/features/tournament/BracketScreen.kt << 'EOF'
+          package com.wassim.ebello.features.tournament
+          import androidx.compose.foundation.layout.PaddingValues
+          import androidx.compose.foundation.layout.Column
+          import androidx.compose.foundation.layout.padding
+          import androidx.compose.material3.Text
+          import androidx.compose.runtime.Composable
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.unit.dp
+
+          @Composable
+          fun BracketScreen(padding: PaddingValues) {
+            Column(Modifier.padding(padding).padding(16.dp)) {
+              Text("Bracket View (demo)")
+            }
+          }
+          EOF
+
+          cat > app/src/main/java/com/wassim/ebello/features/teams/ShowdownParser.kt << 'EOF'
+          package com.wassim.ebello.features.teams
+          data class ShowdownSet(val name: String?, val species: String, val item: String?, val ability: String?, val moves: List<String>)
+          object ShowdownParser {
+            fun parse(input: String): List<ShowdownSet> {
+              return input.trim().split(Regex("\\n\\s*\\n")).mapNotNull { block ->
+                val lines = block.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                if (lines.isEmpty()) return@mapNotNull null
+                val first = lines.first()
+                val nameSpecies = first.split("@").map { it.trim() }
+                val nameAndSpecies = nameSpecies[0]
+                val item = if (nameSpecies.size > 1) nameSpecies[1] else null
+                val parts = nameAndSpecies.split(Regex("\\s+\\("))
+                val name = if (parts.size > 1) parts[0].trim() else null
+                val species = if (parts.size > 1) parts[1].removeSuffix(")").trim() else parts[0].trim()
+                val ability = lines.firstOrNull { it.startsWith("Ability:") }?.substringAfter(":")?.trim()
+                val moves = lines.filter { it.startsWith("- ") }.map { it.removePrefix("- ").trim() }
+                ShowdownSet(name, species, item, ability, moves)
               }
-              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { if (participants.size >= 2) { val b = generateRandomBracket(participants); bracketState.clear(); bracketState.addAll(b.rounds) } }) { Text("Generate Bracket") }
-                Button(onClick = { participants.clear(); bracketState.clear() }) { Text("Clear") }
-              }
-              Text("Participants: ${participants.size}")
-              LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(participants) { p -> Card { Text(p.displayName, modifier = Modifier.padding(12.dp)) } }
-              }
-              if (bracketState.isNotEmpty()) {
-                Text("Bracket", style = MaterialTheme.typography.titleMedium)
-                bracketState.forEachIndexed { roundIndex, matches ->
-                  Text("Round ${roundIndex + 1}", style = MaterialTheme.typography.titleSmall)
-                  matches.forEach { m ->
-                    Card(modifier = Modifier.padding(vertical = 4.dp)) {
-                      Row(modifier = Modifier.padding(12.dp)) {
-                        Text((m.participantA?.displayName ?: "TBD") + " vs " + (m.participantB?.displayName ?: "TBD"))
-                      }
-                    }
-                  }
-                }
+            }
+            fun serialize(team: List<ShowdownSet>): String {
+              return team.joinToString("\n\n") { s ->
+                buildString {
+                  append((s.name?.let { "$it " } ?: "") + s.species)
+                  if (s.item != null) append(" @ ${s.item}")
+                  appendLine()
+                  if (s.ability != null) appendLine("Ability: ${s.ability}")
+                  s.moves.forEach { appendLine("- $it") }
+                }.trim()
               }
             }
           }
           EOF
 
-          cat > app/src/main/java/com/pixelmon/utm/features/team/TeamModels.kt << 'EOF'
-          package com.pixelmon.utm.features.team
-          data class Species(val id: String, val name: String)
-          data class TeamMember(val species: Species, val nickname: String? = null)
-          data class Team(val name: String, val members: List<TeamMember> = emptyList())
-          EOF
+          cat > app/src/main/java/com/wassim/ebello/features/teams/PokepasteClient.kt << 'EOF'
+          package com.wassim.ebello.features.teams
+          import okhttp3.OkHttpClient
+          import okhttp3.Request
 
-          cat > app/src/main/java/com/pixelmon/utm/features/team/SpeciesData.kt << 'EOF'
-          package com.pixelmon.utm.features.team
-          object SpeciesDataRepository {
-            val sampleSpecies: List<Species> = listOf(
-              Species("001", "Leafaur"), Species("002", "Blazetail"), Species("003", "Aquafin"),
-              Species("004", "Thunderimp"), Species("005", "Stonehorn"), Species("006", "Shadowpup"),
-              Species("007", "Skywing"), Species("008", "Toxibug"), Species("009", "Frostling"), Species("010", "Pyromite")
-            )
+          object PokepasteClient {
+            private val client = OkHttpClient()
+            fun fetchPaste(url: String): String {
+              val req = Request.Builder().url(url).build()
+              client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) error("HTTP ${'$'}{resp.code}")
+                return resp.body?.string() ?: ""
+              }
+            }
           }
           EOF
 
-          cat > app/src/main/java/com/pixelmon/utm/features/team/TeamManagerScreen.kt << 'EOF'
-          package com.pixelmon.utm.features.team
+          cat > app/src/main/java/com/wassim/ebello/features/teams/TeamImportExportScreen.kt << 'EOF'
+          package com.wassim.ebello.features.teams
           import androidx.compose.foundation.layout.PaddingValues
-          import androidx.compose.foundation.layout.*
-          import androidx.compose.foundation.lazy.LazyColumn
-          import androidx.compose.foundation.lazy.items
-          import androidx.compose.material3.*
-          import androidx.compose.runtime.Composable
-          import androidx.compose.runtime.mutableStateListOf
-          import androidx.compose.runtime.remember
+          import androidx.compose.foundation.layout.Column
+          import androidx.compose.foundation.layout.fillMaxWidth
+          import androidx.compose.foundation.layout.padding
+          import androidx.compose.material3.Button
+          import androidx.compose.material3.OutlinedTextField
+          import androidx.compose.material3.Text
+          import androidx.compose.runtime.*
           import androidx.compose.ui.Modifier
           import androidx.compose.ui.unit.dp
+
           @Composable
-          fun TeamManagerScreen(paddingValues: PaddingValues) {
-            val teams = remember { mutableStateListOf<Team>() }
-            val species = remember { SpeciesDataRepository.sampleSpecies }
-            Column(Modifier.fillMaxSize().padding(paddingValues).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-              Text("UTM: Team Manager", style = MaterialTheme.typography.titleLarge)
-              val teamName = remember { androidx.compose.runtime.mutableStateOf("") }
-              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = teamName.value, onValueChange = { teamName.value = it }, label = { Text("New team name") }, modifier = Modifier.weight(1f))
-                Button(onClick = { val n = teamName.value.trim(); if (n.isNotEmpty()) { teams.add(Team(name = n)); teamName.value = "" } }) { Text("Create") }
-              }
-              Text("Teams: ${teams.size}")
-              LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(teams) { team ->
-                  Card(modifier = Modifier.padding(vertical = 4.dp)) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                      Text(team.name, style = MaterialTheme.typography.titleMedium)
-                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        species.take(6).forEach { sp ->
-                          Button(onClick = {
-                            val updated = team.members.toMutableList()
-                            if (updated.size < 6) {
-                              updated.add(TeamMember(species = sp))
-                              val idx = teams.indexOf(team)
-                              if (idx >= 0) teams[idx] = team.copy(members = updated)
-                            }
-                          }) { Text(sp.name) }
-                        }
-                        Button(onClick = {
-                          val randomized = species.shuffled().take(6).map { TeamMember(it) }
-                          val idx = teams.indexOf(team)
-                          if (idx >= 0) teams[idx] = team.copy(members = randomized)
-                        }) { Text("Random 6") }
-                      }
-                      if (team.members.isNotEmpty()) {
-                        Text("Members:")
-                        team.members.forEach { member -> Text("- ${member.species.name}") }
-                      }
-                    }
-                  }
-                }
+          fun TeamImportExportScreen(padding: PaddingValues) {
+            var input by remember { mutableStateOf("") }
+            var output by remember { mutableStateOf("") }
+            Column(Modifier.padding(padding).padding(16.dp)) {
+              Text("Import / Export Teams (Showdown / Pokepaste)")
+              OutlinedTextField(value = input, onValueChange = { input = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Paste Showdown or Pokepaste URL") })
+              Button(onClick = {
+                output = try {
+                  if (input.startsWith("http")) PokepasteClient.fetchPaste(input) else ShowdownParser.serialize(ShowdownParser.parse(input))
+                } catch (e: Exception) { "Error: ${'$'}{e.message}" }
+              }) { Text("Process") }
+              if (output.isNotBlank()) {
+                Text("Output:")
+                Text(output)
               }
             }
           }
