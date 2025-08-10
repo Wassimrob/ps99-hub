@@ -1,0 +1,514 @@
+name: Release APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept licenses and install SDK
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Create Android project files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/java/com/wassim/ebello/{ui,nav} \
+                   app/src/main/java/com/wassim/ebello/features/{tournament,teams,battle,common} \
+                   app/src/main/res/values app/src/main/res/mipmap-anydpi-v26
+
+          cat > settings.gradle.kts << 'EOF'
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+            repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "WassimEBello"
+          include(":app")
+          EOF
+
+          cat > build.gradle.kts << 'EOF'
+          plugins {
+            id("com.android.application") version "8.5.2" apply false
+            id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+          }
+          EOF
+
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          kotlin.code.style=official
+          EOF
+
+          cat > app/build.gradle.kts << 'EOF'
+          plugins {
+            id("com.android.application")
+            id("org.jetbrains.kotlin.android")
+          }
+          android {
+            namespace = "com.wassim.ebello"
+            compileSdk = 34
+            defaultConfig {
+              applicationId = "com.wassim.ebello"
+              minSdk = 29
+              targetSdk = 34
+              versionCode = 2
+              versionName = "2.0.0"
+              testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+              vectorDrawables { useSupportLibrary = true }
+            }
+            buildTypes {
+              release {
+                isMinifyEnabled = true
+                proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+              }
+              debug { isMinifyEnabled = false }
+            }
+            buildFeatures { compose = true }
+            composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
+            kotlinOptions { jvmTarget = "17" }
+            compileOptions {
+              sourceCompatibility = JavaVersion.VERSION_17
+              targetCompatibility = JavaVersion.VERSION_17
+            }
+            packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+          }
+          dependencies {
+            val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
+            implementation(composeBom); androidTestImplementation(composeBom)
+
+            implementation("androidx.core:core-ktx:1.13.1")
+            implementation("androidx.activity:activity-compose:1.9.2")
+            implementation("androidx.compose.ui:ui")
+            implementation("androidx.compose.ui:ui-tooling-preview")
+            implementation("androidx.compose.material3:material3:1.3.0")
+            implementation("androidx.navigation:navigation-compose:2.8.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+            implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+            debugImplementation("androidx.compose.ui:ui-tooling")
+            testImplementation("junit:junit:4.13.2")
+          }
+          EOF
+
+          cat > app/proguard-rules.pro << 'EOF'
+          -keep class kotlin.** { *; }
+          -keep class androidx.compose.** { *; }
+          -dontwarn org.jetbrains.annotations.**
+          EOF
+
+          mkdir -p app/src/main
+
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <uses-permission android:name="android.permission.INTERNET"/>
+            <application
+              android:allowBackup="true"
+              android:label="Wassim E Bello"
+              android:icon="@mipmap/ic_launcher"
+              android:supportsRtl="true"
+              android:theme="@android:style/Theme.DeviceDefault">
+              <activity
+                android:name=".ui.MainActivity"
+                android:exported="true">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN" />
+                  <category android:name="android.intent.category.LAUNCHER" />
+                </intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+            <background android:drawable="@android:color/black"/>
+            <foreground android:drawable="@android:drawable/star_big_on"/>
+          </adaptive-icon>
+          EOF
+
+          cat > app/src/main/java/com/wassim/ebello/ui/MainActivity.kt << 'EOF'
+          package com.wassim.ebello.ui
+          import android.os.Bundle
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.getValue
+          import androidx.compose.ui.res.painterResource
+          import androidx.navigation.NavGraph.Companion.findStartDestination
+          import androidx.navigation.compose.*
+          import com.wassim.ebello.features.tournament.TournamentsScreen
+          import com.wassim.ebello.features.teams.TeamImportExportScreen
+          import com.wassim.ebello.features.battle.BattleScreen
+
+          class MainActivity : ComponentActivity() {
+            override fun onCreate(savedInstanceState: Bundle?) {
+              super.onCreate(savedInstanceState)
+              setContent {
+                val nav = rememberNavController()
+                Scaffold(bottomBar = {
+                  NavigationBar {
+                    val back by nav.currentBackStackEntryAsState()
+                    val route = back?.destination?.route
+                    listOf("home","tournaments","teams","battle").forEach { r ->
+                      NavigationBarItem(
+                        selected = route == r,
+                        onClick = { nav.navigate(r) {
+                          popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                          launchSingleTop = true; restoreState = true
+                        }},
+                        icon = { Icon(painterResource(android.R.drawable.star_big_on), null) },
+                        label = { Text(r.replaceFirstChar { it.uppercase() }) }
+                      )
+                    }
+                  }
+                }) { pad ->
+                  NavHost(nav, "home") {
+                    composable("home") { Text("Wassim E Bello — UTM + Tournaments + Battle AI") }
+                    composable("tournaments") { TournamentsScreen(pad) }
+                    composable("teams") { TeamImportExportScreen(pad) }
+                    composable("battle") { BattleScreen(pad) }
+                  }
+                }
+              }
+            }
+          }
+          EOF
+
+          cat > app/src/main/java/com/wassim/ebello/features/tournament/Models.kt << 'EOF'
+          package com.wassim.ebello.features.tournament
+          data class Participant(val id: String, val name: String)
+          data class Match(val a: Participant?, val b: Participant?)
+          data class Round(val matches: List<Match>)
+          data class Bracket(val rounds: List<Round>, val seed: Long)
+          data class UtmRules(
+            val levelCap: Int = 100,
+            val teamSize: Int = 6,
+            val speciesClause: Boolean = true,
+            val sleepClause: Boolean = true,
+            val ohkoBanned: Boolean = true
+          )
+          EOF
+
+          cat > app/src/main/java/com/wassim/ebello/features/tournament/Engines.kt << 'EOF'
+          package com.wassim.ebello.features.tournament
+          import kotlin.random.Random
+          object Engines {
+            fun singleElim(players: List<Participant>, seed: Long): Bracket {
+              require(players.size >= 2)
+              val rng = Random(seed)
+              val nextPow2 = 1 shl (32 - Integer.numberOfLeadingZeros(players.size - 1))
+              val byes = nextPow2 - players.size
+              val pool = players.shuffled(rng) + List(byes) { Participant("bye-$it","BYE") }
+              val rounds = mutableListOf<Round>()
+              var current = pool.chunked(2).map { Match(it.getOrNull(0), it.getOrNull(1)) }
+              rounds += Round(current)
+              var size = current.size
+              while (size > 1) { size /= 2; rounds += Round(List(size) { Match(null,null) }) }
+              return Bracket(rounds, seed)
+            }
+            fun roundRobin(players: List<Participant>, seed: Long): Bracket {
+              require(players.size >= 2)
+              val rng = Random(seed)
+              val list = if (players.size % 2 == 0) players.shuffled(rng) else players.shuffled(rng) + Participant("bye","BYE")
+              val n = list.size; val rounds = mutableListOf<Round>()
+              var arr = list.toMutableList()
+              repeat(n-1) {
+                rounds += Round((0 until n/2).map { i -> Match(arr[i], arr[n-1-i]) })
+                val fixed = arr.first(); val rotated = listOf(fixed) + listOf(arr.last()) + arr.subList(1, n-1)
+                arr = rotated.toMutableList()
+              }
+              return Bracket(rounds, seed)
+            }
+            fun swiss(players: List<Participant>, roundsCount: Int, seed: Long): Bracket {
+              require(players.size >= 2 && roundsCount >= 1)
+              val rng = Random(seed)
+              val shuffled = players.shuffled(rng)
+              val rounds = (0 until roundsCount).map { Round(shuffled.chunked(2).map { p -> Match(p.getOrNull(0), p.getOrNull(1)) }) }
+              return Bracket(rounds, seed)
+            }
+          }
+          EOF
+
+          cat > app/src/main/java/com/wassim/ebello/features/tournament/TournamentsScreen.kt << 'EOF'
+          package com.wassim.ebello.features.tournament
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.unit.dp
+
+          @Composable
+          fun TournamentsScreen(padding: PaddingValues) {
+            var seedText by remember { mutableStateOf("1234") }
+            var info by remember { mutableStateOf("") }
+            Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+              Text("UTM Presets / Random Tournament")
+              OutlinedTextField(value = seedText, onValueChange = { seedText = it }, label = { Text("Seed") })
+              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                  val players = (1..16).map { Participant("$it","Player $it") }
+                  val b = Engines.singleElim(players, seedText.toLongOrNull() ?: 1L)
+                  info = "Single Elim rounds=${b.rounds.size} seed=${b.seed}"
+                }) { Text("Single Elim") }
+                Button(onClick = {
+                  val players = (1..8).map { Participant("$it","Player $it") }
+                  val b = Engines.roundRobin(players, seedText.toLongOrNull() ?: 1L)
+                  info = "Round Robin rounds=${b.rounds.size}"
+                }) { Text("Round Robin") }
+                Button(onClick = {
+                  val players = (1..12).map { Participant("$it","Player $it") }
+                  val b = Engines.swiss(players, 4, seedText.toLongOrNull() ?: 1L)
+                  info = "Swiss rounds=${b.rounds.size}"
+                }) { Text("Swiss") }
+              }
+              Text(info)
+              Text("Rules:")
+              val rules = remember { mutableStateOf(UtmRules()) }
+              Text("- Level cap ${rules.value.levelCap} • Team size ${rules.value.teamSize}")
+              Text("- SpeciesClause=${rules.value.speciesClause} SleepClause=${rules.value.sleepClause} OHKO=${rules.value.ohkoBanned}")
+            }
+          }
+          EOF
+
+          cat > app/src/main/java/com/wassim/ebello/features/teams/Showdown.kt << 'EOF'
+          package com.wassim.ebello.features.teams
+          data class ShowdownSet(val name: String?, val species: String, val item: String?, val ability: String?, val moves: List<String>)
+          object Showdown {
+            fun parse(input: String): List<ShowdownSet> {
+              return input.trim().split(Regex("\\n\\s*\\n")).mapNotNull { block ->
+                val lines = block.lines().map { it.trim() }.filter { it.isNotEmpty() }
+                if (lines.isEmpty()) return@mapNotNull null
+                val first = lines.first()
+                val nameSpecies = first.split("@").map { it.trim() }
+                val nameSpeciesPart = nameSpecies[0]
+                val item = if (nameSpecies.size > 1) nameSpecies[1] else null
+                val parts = nameSpeciesPart.split(Regex("\\s*\\("))
+                val name = if (parts.size > 1) parts[0].trim() else null
+                val species = if (parts.size > 1) parts[1].removeSuffix(")").trim() else parts[0].trim()
+                val ability = lines.firstOrNull { it.startsWith("Ability:", true) }?.substringAfter(":")?.trim()
+                val moves = lines.filter { it.startsWith("- ") }.map { it.removePrefix("- ").trim() }
+                ShowdownSet(name, species, item, ability, moves)
+              }
+            }
+            fun serialize(team: List<ShowdownSet>): String = team.joinToString("\n\n") { s ->
+              buildString {
+                append((s.name?.let { "$it " } ?: "") + s.species)
+                if (s.item != null) append(" @ ${s.item}")
+                appendLine()
+                if (s.ability != null) appendLine("Ability: ${s.ability}")
+                s.moves.forEach { appendLine("- $it") }
+              }.trim()
+            }
+          }
+          EOF
+
+          cat > app/src/main/java/com/wassim/ebello/features/teams/Pokepaste.kt << 'EOF'
+          package com.wassim.ebello.features.teams
+          import okhttp3.OkHttpClient
+          import okhttp3.Request
+          object Pokepaste {
+            private val client = OkHttpClient()
+            fun fetch(url: String): String {
+              val req = Request.Builder().url(url).build()
+              client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) error("HTTP ${'$'}{resp.code}")
+                return resp.body?.string() ?: ""
+              }
+            }
+          }
+          EOF
+
+          cat > app/src/main/java/com/wassim/ebello/features/teams/TeamImportExportScreen.kt << 'EOF'
+          package com.wassim.ebello.features.teams
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.unit.dp
+
+          @Composable
+          fun TeamImportExportScreen(padding: PaddingValues) {
+            var input by remember { mutableStateOf("") }
+            var output by remember { mutableStateOf("") }
+            Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+              Text("Import/Export — Showdown / Pokepaste URL")
+              OutlinedTextField(value = input, onValueChange = { input = it }, label = { Text("Paste Showdown text or Pokepaste URL") }, modifier = Modifier.fillMaxWidth())
+              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { output = Showdown.serialize(Showdown.parse(input)) }) { Text("Normalize Showdown") }
+                Button(onClick = {
+                  output = try { Pokepaste.fetch(input) } catch (e: Exception) { "Error: ${'$'}{e.message}" }
+                }) { Text("Load Pokepaste") }
+              }
+              if (output.isNotBlank()) { Text("Output:"); Text(output) }
+            }
+          }
+          EOF
+
+          cat > app/src/main/java/com/wassim/ebello/features/battle/RandomDex.kt << 'EOF'
+          package com.wassim.ebello.features.battle
+          data class Species(val name: String, val baseHP: Int, val baseAtk: Int, val baseDef: Int, val baseSpA: Int, val baseSpD: Int, val baseSpe: Int)
+          data class Move(val name: String, val power: Int, val category: String)
+          object RandomDex {
+            val species = listOf(
+              Species("Flarecat", 78, 84, 78, 109, 85, 100),
+              Species("Hydrake", 79, 83, 100, 85, 105, 78),
+              Species("Venasprout", 80, 82, 83, 100, 100, 80),
+              Species("Sparrowvolt", 60, 85, 60, 110, 70, 120),
+              Species("Bouldear", 90, 120, 130, 45, 65, 45),
+              Species("Mystimp", 65, 60, 60, 130, 95, 110),
+              Species("Ironhorn", 95, 125, 90, 60, 80, 55),
+              Species("Seashade", 70, 75, 85, 95, 100, 70),
+              Species("Leafauri", 88, 95, 88, 95, 88, 60),
+              Species("Stormray", 70, 85, 60, 125, 85, 105)
+            )
+            val moves = listOf(
+              Move("Strike", 70, "Physical"),
+              Move("Power Slam", 90, "Physical"),
+              Move("Blast", 80, "Special"),
+              Move("Volt Surge", 90, "Special"),
+              Move("Aqua Jet", 40, "Physical"),
+              Move("Leaf Burst", 90, "Special")
+            )
+          }
+          EOF
+
+          cat > app/src/main/java/com/wassim/ebello/features/battle/BattleEngine.kt << 'EOF'
+          package com.wassim.ebello.features.battle
+          import kotlin.math.max
+          import kotlin.random.Random
+
+          data class Mon(val species: Species, val level: Int, val moves: List<Move>, var hp: Int, val maxHp: Int, val atk: Int, val def: Int, val spA: Int, val spD: Int, val spe: Int)
+          data class BattleTeam(val mons: MutableList<Mon>)
+          data class BattleLogLine(val text: String)
+          data class BattleState(val teamA: BattleTeam, val teamB: BattleTeam, val log: MutableList<BattleLogLine>, var turn: Int = 1, val seed: Long)
+
+          object BattleEngine {
+            private fun calcStat(base: Int, level: Int, isHp: Boolean): Int {
+              return if (isHp) ((2*base*level)/100) + level + 10 else ((2*base*level)/100) + 5
+            }
+            fun randomTeam(rng: Random): BattleTeam {
+              val mons = (0 until 6).map {
+                val sp = RandomDex.species.random(rng)
+                val lvl = rng.nextInt(82, 101)
+                val maxHp = calcStat(sp.baseHP, lvl, true)
+                Mon(
+                  species = sp, level = lvl, moves = RandomDex.moves.shuffled(rng).take(4),
+                  hp = maxHp, maxHp = maxHp,
+                  atk = calcStat(sp.baseAtk, lvl, false),
+                  def = calcStat(sp.baseDef, lvl, false),
+                  spA = calcStat(sp.baseSpA, lvl, false),
+                  spD = calcStat(sp.baseSpD, lvl, false),
+                  spe = calcStat(sp.baseSpe, lvl, false)
+                )
+              }.toMutableList()
+              return BattleTeam(mons)
+            }
+            private fun damage(attacker: Mon, defender: Mon, move: Move, rng: Random): Int {
+              val A = if (move.category == "Physical") attacker.atk else attacker.spA
+              val D = if (move.category == "Physical") defender.def else defender.spD
+              val base = (((2*attacker.level)/5 + 2) * move.power * max(1, A) / max(1, D)) / 50 + 2
+              val rand = (85 + rng.nextInt(16)) / 100.0
+              return max(1, (base * rand).toInt())
+            }
+            fun step(state: BattleState, rng: Random) {
+              val a = state.teamA.mons.firstOrNull { it.hp > 0 } ?: return
+              val b = state.teamB.mons.firstOrNull { it.hp > 0 } ?: return
+              val first = if (a.spe >= b.spe) Pair(a, b) else Pair(b, a)
+              listOf(first, first.second to first.first).forEach { (att, def) ->
+                if (att.hp <= 0 || def.hp <= 0) return@forEach
+                val move = att.moves.random(rng)
+                val dmg = damage(att, def, move, rng)
+                def.hp = max(0, def.hp - dmg)
+                state.log += BattleLogLine("${att.species.name} used ${move.name}! ${def.species.name} took ${dmg} dmg (${def.hp}/${def.maxHp})")
+              }
+              state.turn += 1
+            }
+            fun finished(state: BattleState): Boolean =
+              state.teamA.mons.none { it.hp > 0 } || state.teamB.mons.none { it.hp > 0 }
+          }
+          EOF
+
+          cat > app/src/main/java/com/wassim/ebello/features/battle/BattleScreen.kt << 'EOF'
+          package com.wassim.ebello.features.battle
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.rememberScrollState
+          import androidx.compose.foundation.verticalScroll
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.Modifier
+          import androidx.compose.ui.unit.dp
+          import kotlin.random.Random
+
+          @Composable
+          fun BattleScreen(padding: PaddingValues) {
+            val seed = remember { System.currentTimeMillis() }
+            val rng = remember { Random(seed) }
+            var state by remember {
+              mutableStateOf(BattleState(BattleEngine.randomTeam(rng), BattleEngine.randomTeam(rng), mutableListOf(), seed = seed))
+            }
+            var auto by remember { mutableStateOf(false) }
+            Column(Modifier.padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              Text("AI Battle (6v6) — Random levels 82–100 — Seed $seed")
+              Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                  state = BattleState(BattleEngine.randomTeam(rng), BattleEngine.randomTeam(rng), mutableListOf(), seed)
+                }) { Text("New Teams") }
+                Button(onClick = {
+                  if (!BattleEngine.finished(state)) BattleEngine.step(state, rng)
+                }) { Text("Next Turn") }
+                Button(onClick = { auto = !auto }) { Text(if (auto) "Pause" else "Auto") }
+              }
+              LaunchedEffect(auto, state.turn) {
+                if (auto && !BattleEngine.finished(state)) {
+                  kotlinx.coroutines.delay(400L)
+                  BattleEngine.step(state, rng)
+                }
+              }
+              Text("A active: ${state.teamA.mons.first { it.hp>0 }.species.name} • B active: ${state.teamB.mons.first { it.hp>0 }.species.name}")
+              Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                state.log.takeLast(200).forEach { Text(it.text) }
+              }
+              if (BattleEngine.finished(state)) {
+                val aAlive = state.teamA.mons.count { it.hp>0 }
+                val bAlive = state.teamB.mons.count { it.hp>0 }
+                Text("Result: " + if (aAlive>bAlive) "Team A wins" else "Team B wins")
+              }
+            }
+          }
+          EOF
+
+      - name: Build with Gradle
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: 8.7
+          arguments: assembleDebug
+
+      - name: Create/Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: debug-latest
+          files: app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
