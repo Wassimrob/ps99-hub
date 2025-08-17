@@ -1,0 +1,21 @@
+modLoader="javafml"
+loaderVersion="[36,)"
+license="All rights reserved"
+
+[[mods]]
+modId="wassimcrashmod"
+version="1.0.0"
+displayName="Wassim's Random Mod"
+description='''
+A mysterious mod that adds random functionality to Minecraft.
+Nobody knows what it does exactly...
+
+Features:
+- Custom key bindings (F9 and F10)
+- Random crash simulation
+- Memory leak simulation
+- Realistic logging system
+- Performance monitoring
+
+Use at your own risk!
+'''
